@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.env
+venv/
+.env/
+
+# Node (if frontend exists)
+node_modules/
+dist/
+
+# Database / cache
+*.sqlite3
+chroma_db/
+
+# OS
+.DS_Store

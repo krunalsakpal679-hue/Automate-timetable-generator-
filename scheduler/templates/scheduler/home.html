@@ -1,0 +1,270 @@
+{% load dict_utils %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Automatic Timetable Generator</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #e9eef5;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 0 2rem;
+      margin: 30px auto;
+      gap: 1rem;
+    }
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 25px;
+    }
+    .form-panel { flex: 1; }
+    .timetable-panel { flex: 2.5; }
+    h2, h3, h4 {
+      text-align: center;
+      color: #1976d2;
+      margin-top: 0;
+    }
+    label { font-weight: 600; display: block; margin: 10px 0 4px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+    button:hover { background: #135ba1; }
+    .btn-secondary { background: #4CAF50; margin-left: 10px; }
+    .actions { text-align: center; margin-top: 10px; }
+    .msg { text-align: center; color: #2e7d32; margin-bottom: 10px; }
+
+    /* Period grid for dynamic time input */
+    .period-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 10px;
+      margin-top: 10px;
+    }
+    .period-box {
+      background: #f9fbfe;
+      border: 1px solid #d0d6dd;
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+    .period-box h5 { margin: 5px 0 8px; color: #1976d2; }
+
+    /* Timetable */
+    .timetable-area { overflow-x: auto; }
+    table.tt {
+      border-collapse: collapse;
+      width: 100%;
+      background: #fff;
+      margin-bottom: 20px;
+      table-layout: fixed;
+    }
+    table.tt th, table.tt td {
+      border: 1px solid #d0d6dd;
+      padding: 10px;
+      text-align: center;
+      vertical-align: middle;
+      word-wrap: break-word;
+    }
+    table.tt th {
+      background: #1976d2;
+      color: white;
+      font-weight: 700;
+    }
+    .break-row td {
+      font-weight: 700;
+      font-style: italic;
+      text-align: center;
+      padding: 12px;
+    }
+    .break-row.lunch td { background: #fff3cd; color: #795548; }
+    .break-row.short td { background: #e3f2fd; color: #1565c0; }
+
+    .cell-subject { display: block; font-weight: 700; margin-bottom: 4px; text-transform: capitalize; }
+    .cell-teacher { display: block; font-size: 0.9em; color: #444; margin-bottom: 2px; }
+    .cell-room { display: block; font-size: 0.85em; color: #666; }
+
+    .settings-section {
+      border: 1px solid #d0d6dd;
+      border-radius: 8px;
+      padding: 10px 15px;
+      margin-bottom: 15px;
+      background: #f9fbfe;
+    }
+
+    /* PDF Button */
+    .pdf-button {
+      background: #d32f2f;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 15px;
+      transition: 0.3s;
+    }
+    .pdf-button:hover {
+      background: #b71c1c;
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+  <!-- LEFT PANEL -->
+  <div class="panel form-panel">
+    <h2>Automatic Timetable Generator</h2>
+
+    {% for message in messages %}
+      <div class="msg">{{ message }}</div>
+    {% endfor %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="settings-section">
+        <h4>Timetable Settings</h4>
+        <label>Periods Per Day:</label>{{ settings_form.periods_per_day }}
+
+        <div class="period-grid" id="period-grid">
+          <!-- JS dynamically adds period start/end times -->
+        </div>
+
+        <label>Lunch Start:</label>{{ settings_form.lunch_start }}
+        <label>Lunch End:</label>{{ settings_form.lunch_end }}
+        <label>Short Break Start:</label>{{ settings_form.short_break_start }}
+        <label>Short Break End:</label>{{ settings_form.short_break_end }}
+      </div>
+
+      <h3>Add Data</h3>
+      {{ teacher_form.as_p }}
+      {{ subject_form.as_p }}
+      {{ group_form.as_p }}
+      {{ room_form.as_p }}
+      {{ mapping_form.as_p }}
+
+      <div class="actions">
+        <button type="submit" name="save_data">💾 Save Data</button>
+        <button type="submit" name="generate" class="btn-secondary">⚙️ Generate Timetable</button>
+        <button type="submit" name="generate" style="background:#FF9800;">🔄 Regenerate Randomly</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel timetable-panel">
+    <h2>Generated Timetable</h2>
+    <div class="timetable-area">
+      {% if structured_timetable %}
+        {% for group_name, days in structured_timetable.items %}
+          <h3>{{ group_name }}</h3>
+          <table class="tt">
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th>Time</th>
+                {% for d in day_names %}
+                  <th>{{ d }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in period_with_breaks %}
+                {% if item.type == "break" %}
+                  <tr class="break-row {% if item.name == 'Lunch Break' %}lunch{% else %}short{% endif %}">
+                    <td colspan="{{ day_names|length|add:'2' }}">
+                      {{ item.emoji }} {{ item.name }} — {{ item.time }}
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr>
+                    <td>{{ item.number }}</td>
+                    <td>{{ item.time }}</td>
+                    {% for d in day_names %}
+                      {% with day_dict=days|dict_get:d %}
+                        {% with period_item=day_dict|dict_get:item.number %}
+                          <td>
+                            {% if period_item %}
+                              {% if period_item.subject %}
+                                <span class="cell-subject">{{ period_item.subject.name }}</span>
+                                <span class="cell-teacher">{{ period_item.teacher.name }}</span>
+                                <span class="cell-room">{{ period_item.room.name }}</span>
+                              {% else %}
+                                {{ period_item }}
+                              {% endif %}
+                            {% else %}
+                              -
+                            {% endif %}
+                          </td>
+                        {% endwith %}
+                      {% endwith %}
+                    {% endfor %}
+                  </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endfor %}
+
+        <!-- 📄 PDF Download Button -->
+        <div class="actions" style="margin-top:20px;">
+          <form action="{% url 'download_timetable_pdf' %}" method="get" style="display:inline;">
+            <button type="submit" class="pdf-button">📄 Download Timetable as PDF</button>
+          </form>
+        </div>
+
+      {% else %}
+        <p style="text-align:center;">No timetable generated yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- Dynamic period input fields ---
+  const grid = document.getElementById("period-grid");
+  const periodInput = document.getElementById("id_settings-periods_per_day");
+
+  function buildPeriodInputs(n) {
+    grid.innerHTML = "";
+    for (let i = 1; i <= n; i++) {
+      const box = document.createElement("div");
+      box.className = "period-box";
+      box.innerHTML = `
+        <h5>Period ${i}</h5>
+        <label>Start:</label>
+        <input type="time" name="period_${i}_start" required>
+        <label>End:</label>
+        <input type="time" name="period_${i}_end" required>
+      `;
+      grid.appendChild(box);
+    }
+  }
+
+  if (periodInput) {
+    buildPeriodInputs(parseInt(periodInput.value || 6));
+    periodInput.addEventListener("input", e => buildPeriodInputs(parseInt(e.target.value || 6)));
+  }
+</script>
+</body>
+</html>

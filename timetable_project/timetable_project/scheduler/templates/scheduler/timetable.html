@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generated Timetable</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f5f5f5; }
+        h1 { text-align: center; color: #1976d2; }
+        table { border-collapse: collapse; width: 90%; margin: 20px auto; background: white; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
+        th { background-color: #1976d2; color: white; }
+        td { font-size: 14px; }
+        .group-name { background-color: #2196f3; color: white; font-weight: bold; }
+        .button-container { text-align: center; margin: 20px; }
+        .btn {
+            background-color: #1976d2;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        .btn-print { background-color: #4CAF50; }
+    </style>
+</head>
+<body>
+    <h1>Generated Timetable</h1>
+
+    <div class="button-container">
+        <form action="{% url 'regenerate_timetable' %}" method="post" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn">🔄 Regenerate Timetable</button>
+        </form>
+
+        <button class="btn btn-print" onclick="window.print()">🖨️ Print Timetable</button>
+    </div>
+
+    {% if messages %}
+        <div style="text-align:center; margin-top:10px;">
+            {% for message in messages %}
+                <p style="color: {% if message.tags == 'error' %}red{% else %}green{% endif %};">
+                    {{ message }}
+                </p>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if structured_timetable %}
+        {% for group_name, days in structured_timetable.items %}
+            <h2 style="text-align:center; color:#1976d2;">{{ group_name }}</h2>
+            <table>
+                <tr>
+                    <th>Day</th>
+                    <th>Period</th>
+                    <th>Subject</th>
+                    <th>Teacher</th>
+                    <th>Room</th>
+                </tr>
+                {% for day_name, periods in days.items %}
+                    {% for period_no, period in periods.items %}
+                        <tr>
+                            <td>{{ day_name }}</td>
+                            <td>{{ period_no }}</td>
+                            <td>{{ period.subject.name }}</td>
+                            <td>{{ period.teacher.name }}</td>
+                            <td>{{ period.room.name }}</td>
+                        </tr>
+                    {% endfor %}
+                {% endfor %}
+            </table>
+        {% endfor %}
+    {% else %}
+        <h3 style="text-align:center; color:gray;">No timetable generated yet.</h3>
+    {% endif %}
+</body>
+</html>
